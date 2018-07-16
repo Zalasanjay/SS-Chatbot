@@ -10,5 +10,5 @@
   1.  npm install 
   2.  npm run start-websocket
   
-  See output on https://localhost:5001
+  See output on http://localhost:5001
   
