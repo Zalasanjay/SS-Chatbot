@@ -1,0 +1,597 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Chatbot-ai</title>
+        <style>
+            * {
+            margin: 0px;
+            padding: 0;
+            box-sizing: border-box;
+            }
+
+            body {
+            font: 13px Helvetica, Arial;
+            margin: 30px;
+            }
+
+            form {
+            background: #000;
+            padding: 3px;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            }
+
+            form input {
+            border: 0;
+            padding: 10px;
+            width: 90%;
+            margin-right: .5%;
+            }
+
+            form button {
+            width: 9%;
+            background: rgb(130, 224, 255);
+            border: none;
+            padding: 10px;
+            }
+
+            #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto;  
+            max-height:350px;
+            }
+
+            #messages li {
+            padding: 5px 10px;
+            }
+
+            #messages li:nth-child(odd) {
+            background: #eee;
+            }
+
+            #chatwindow {
+            position: relative;
+            border: 1px solid #000;
+            width: 700px;
+            height: 400px;
+            background-color: #fff;
+            }
+
+            #messageArea {
+            max-height: 350px;
+            /* overflow: scroll; */
+            position: relative;
+            }
+        </style>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+        <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    </head>
+
+<body>
+    <div id="chatwindow">
+        <div id="messageArea">
+            <ul id="messages"><li><%= text %></li></ul>
+        </div>
+        <form action="">
+            <input id="m" autocomplete="off" style="width:80%"; onkeydown="uniCharCode(event)"/><button type="button" style="background-color:#fff;cursor:pointer;";><i class="fa fa-microphone"></i></button><button>Send</button>
+        </form>
+    </div>
+
+  <div id="picker" style="display:none"></div>
+
+  <!-- <script src="/socket.io/socket.io.js"></script> -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.20.1/moment.min.js"></script>
+  <script>
+    let listOfMessages=[];
+    let index;
+    function uniCharCode(event) {
+        var char = event.which || event.keyCode;
+        if(char===38) {
+            if(index>0) {
+                index--;
+                $('#m').val(listOfMessages[index]);
+            }
+        }
+        if(char===40) {
+            if(index<listOfMessages.length) {
+                index++;
+                $('#m').val(listOfMessages[index]);
+            }
+        }
+      // console.log("Unicode CHARACTER code: " + char);
+    }
+    // var socket = io("http://localhost:3000");
+    var gIsSignedIn = false;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    document.querySelector('button').addEventListener('click', () => {
+        document.querySelector('button').style = 'background-color:#85ff52;cursor:pointer'
+        recognition.start();
+    });
+
+    recognition.addEventListener('speechstart', () => {
+      console.log('Speech has been detected.');
+    });
+
+    recognition.addEventListener('result', (e) => {
+      console.log('Result has been detected.', e.results);
+
+      let last = e.results.length - 1;
+      let text = e.results[last][0].transcript;
+
+      // outputYou.textContent = text;
+      // $('#messages').append($('<li>').text(text));
+      console.log('Confidence: ' + e.results[0][0].confidence);
+
+    //   socket.emit('chat message', text);
+      listOfMessages.push(text);
+        index=listOfMessages.length;
+    });
+
+    recognition.addEventListener('speechend', () => {
+      console.log('Speech end.');
+      document.querySelector('button').style = 'background-color:#fff;cursor:pointer'
+      recognition.stop();
+    });
+
+    recognition.addEventListener('error', (e) => {
+      console.log('Speech error.', e.error);
+      document.querySelector('button').style = 'background-color:#fff;cursor:pointer'
+      // outputBot.textContent = 'Error: ' + e.error;
+      $('#messages').append($('<li>').text('Error: ' + e.error));
+    });
+
+    $('form').submit(function () {
+      // let date=chrono.parseDate($('#m').val());
+      // let format=moment(date).format('MMMM Do YYYY, h:mm:ss a');
+      // console.log("Send-->", date)
+      console.log("Send Format-->", $('#m').val())
+        let msg = {
+            message: $('#m').val()
+				}
+				$('#messages').append($('<li>').text($('#m').val()));
+      // if(date)
+      // handleClientLoad(date);
+      // socket.emit('chat message', $('#m').val());
+      $.post('http://172.16.230.161:5000/chat-message',msg, function(reply) {
+        console.log("Received-- Socket>", reply)
+        if (reply.type == "location") {
+					synthVoice('check your request')
+					window.open(reply.text)
+        } else {
+					synthVoice(reply.text);
+				}
+				let msgs = reply.text.split("\n");
+				msgs.forEach(element => {
+          translateMessage(element);
+          $('#messages').append($('<li>').text(element));
+				});
+				$('#messages').animate({scrollTop: $('#messages').prop("scrollHeight")}, 500);
+				let msg = reply.text
+				if (reply.type) {
+					type = reply.type;
+					date = reply.date
+					gIsSignedIn = gapi.auth2.getAuthInstance().isSignedIn.get();
+					if (type === 'insert') {
+						if (gIsSignedIn) {
+							insertEvent("Event Test", date)
+						}
+					} else if (type === 'get') {
+						listDateEvents(date)
+						// deleteEvents(date)
+					} else if (type === 'delete') {
+						listDateEvents(date)
+						// deleteEvents(date)
+					} else if (type === 'upcoming_get') {
+						listUpcomingEvents(date)
+						// deleteEvents(date)
+					} else if (type === 'dbpedia') {
+						let searchData=reply.search;
+						for(var i in searchData){
+								var key = i;
+								var val = searchData[i];
+								$('#messages').append($('<li>').text("^^ "+ capitalizeFirstLetter(val.key)+" ---> " +val.value));
+						}
+					}
+				}
+			});
+
+      listOfMessages.push($('#m').val());
+        index=listOfMessages.length;
+      $('#m').val('');
+      return false;
+    });
+    /* socket.on('chat message', function (msgObj) {
+      console.log("Received-- Socket>", msgObj)
+      // let text = msgObj.text.replace(">>", "")
+      // text = text.replace("<<", "")
+      if (msgObj.type == "location") {
+        synthVoice('check your request')
+        window.open(msgObj.text)
+      } else {
+        synthVoice(msgObj.text);
+      }
+   
+      let msgs=msgObj.text.split("\n");
+
+        msgs.forEach(element => {
+          translateMessage(element);
+          $('#messages').append($('<li>').text(element));
+        });
+      
+      
+        $('#messages').animate({scrollTop: $('#messages').prop("scrollHeight")}, 500); 
+      let msg = msgObj.text
+      if (msgObj.type) {
+        type = msgObj.type;
+        date = msgObj.date
+        gIsSignedIn = gapi.auth2.getAuthInstance().isSignedIn.get();
+        if (type === 'insert') {
+          if (gIsSignedIn) {
+            insertEvent("Event Test", date)
+          }
+        } else if (type === 'get') {
+          listDateEvents(date)
+          // deleteEvents(date)
+        } else if (type === 'delete') {
+          listDateEvents(date)
+          // deleteEvents(date)
+        } else if (type === 'upcoming_get') {
+          listUpcomingEvents(date)
+          // deleteEvents(date)
+        } else if (type === 'dbpedia') {
+          let searchData=msgObj.search;
+          for(var i in searchData){
+              var key = i;
+              var val = searchData[i];
+              $('#messages').append($('<li>').text("^^ "+ capitalizeFirstLetter(val.key)+" ---> " +val.value));
+          }
+        }
+      }
+      // else{
+      //   var msgReplace = msgObj.text.replace("<<","");
+      //   $('#messages').append($('<li>').text(msgReplace));
+      // }
+      // if(msgObj.type==="location"){
+      //   getLocation();
+      // }else{
+      // var msg = msgObj.text.replace("<<","");
+
+      // $('#messages').append($('<li>').html(msg));
+      // }
+    }); */
+
+    // Translate message to other language
+    function translateMessage(inputVal){
+      console.log('Input', inputVal)
+      axios.post('https://api.cenacle.io/phtrans/toGujarati/json?api_key=VQQHbNPyHmUtps4u2oQgGj9y5oyM6v29UifUyM95', {
+          input: inputVal,
+        },{
+          headers: {
+              'X-Api-Key': 'VQQHbNPyHmUtps4u2oQgGj9y5oyM6v29UifUyM95',
+              'Content-Type': 'application/json'
+          }
+        })
+        .then(function (response) {
+          console.log(response);
+        })
+        .catch(function (error) {
+          console.log("Error:", error);
+        });
+    }
+
+    function capitalizeFirstLetter(string) {
+    	return string.charAt(0).toUpperCase() + string.slice(1);
+		}
+
+    function synthVoice(text) {
+      const synth = window.speechSynthesis;
+      const utterance = new SpeechSynthesisUtterance();
+      utterance.text = text;
+      console.log("Utterance", utterance);
+      synth.speak(utterance);
+    }
+    
+    function convert(str) {
+      var date = new Date(str),
+        mnth = ("0" + (date.getMonth() + 1)).slice(-2),
+        day = ("0" + date.getDate()).slice(-2),
+        hours = ("0" + date.getHours()).slice(-2);
+      minutes = ("0" + date.getMinutes()).slice(-2),
+        milliSeconds = ("0" + date.getMilliseconds()).slice(-2);
+      // milliSeconds = ("0" + date.getMilliseconds()).slice(-2);
+
+      return [date.getFullYear(), mnth, day].join("-") + "T" + [hours, minutes, milliSeconds].join(":");//+":00-07:00";
+      // return "2018-05-28T09:00:00-07:00";
+    }
+
+
+    //   socket.on('chat message', function(msgObj){
+    //     var msg = msgObj.text;
+    //     var color = msgObj.color;
+
+    //     console.log(msgObj);
+    //     if (msgObj.picker && msgObj.picker === "show") {
+    //       $("#picker").show();
+    //     } else {
+    //       $("#picker").hide();
+    //     }
+
+    //     $('body').animate({backgroundColor: color})
+    //     $('#messages').append($('<li>').text(msg));
+
+    //     var newscrollHeight = $("#messageArea")[0].scrollHeight;
+    //     if(newscrollHeight > oldscrollHeight){ 
+    //       $("#messageArea").scrollTop($("#messageArea")[0].scrollHeight);
+    //     }
+    //   });
+
+    /* function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition);
+      }
+      // else { 
+      //     x.innerHTML = "Geolocation is not supported by this browser.";
+      // }
+    } */
+
+    /* function showPosition(position) {
+      socket.emit('chat message', "currentlocation: {lat:" + position.coords.latitude + ", long:" + position.coords.longitude + "}");
+      // x.innerHTML = "Latitude: " + position.coords.latitude + 
+      // "<br>Longitude: " + position.coords.longitude;
+    } */
+  </script>
+  <script>
+    // Client ID and API key from the Developer Console
+    var type, date;
+    var CLIENT_ID = '360950073378-avo4kr27vc1alme8es2662o6vn805vje.apps.googleusercontent.com';
+    var API_KEY = 'AIzaSyCo73uWhQtkfaCZ6IBF5ejuphFZLAcnzps';
+
+    // Array of API discovery doc URLs for APIs used by the quickstart
+    var DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"];
+
+    // Authorization scopes required by the API; multiple scopes can be
+    // included, separated by spaces.
+    var SCOPES = "https://www.googleapis.com/auth/calendar";
+
+    // var authorizeButton = document.getElementById('authorize-button');
+    // var signoutButton = document.getElementById('signout-button');
+
+    /**
+     *  On load, called to load the auth2 library and API client library.
+     */
+    function handleClientLoad() {
+      gapi.load('client:auth2', initClient);
+    }
+
+    /**
+     *  Initializes the API client library and sets up sign-in state
+     *  listeners.
+     */
+    function initClient() {
+      gapi.client.init({
+        apiKey: API_KEY,
+        clientId: CLIENT_ID,
+        discoveryDocs: DISCOVERY_DOCS,
+        scope: SCOPES
+      }).then(function () {
+        // Listen for sign-in state changes.
+        gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+
+        // Handle the initial sign-in state.
+        updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+        // authorizeButton.onclick = handleAuthClick;
+        // signoutButton.onclick = handleSignoutClick;
+      });
+    }
+
+    /**
+     *  Called when the signed in status changes, to update the UI
+     *  appropriately. After a sign-in, the API is called.
+     */
+    function updateSigninStatus(isSignedIn) {
+      if (isSignedIn) {
+        console.log("is Signed IN", type, date)
+        // authorizeButton.style.display = 'none';
+        // signoutButton.style.display = 'block';
+        // listUpcomingEvents();
+        gIsSignedIn = true;
+      } else {
+        gIsSignedIn = false;
+        console.log("is Signed  Not sIN")
+        handleAuthClick();
+        // authorizeButton.style.display = 'block';
+        // signoutButton.style.display = 'none';
+      }
+    }
+
+    /**
+     *  Sign in the user upon button click.
+     */
+    function handleAuthClick(event) {
+      gapi.auth2.getAuthInstance().signIn();
+    }
+
+    /**
+     *  Sign out the user upon button click.
+     */
+    function handleSignoutClick(event) {
+      gapi.auth2.getAuthInstance().signOut();
+    }
+
+    /**
+     * Append a pre element to the body containing the given message
+     * as its text node. Used to display the results of the API call.
+     *
+     * @param {string} message Text to be placed in pre element.
+     */
+    function appendPre(message) {
+      var pre = document.getElementById('content');
+      var textContent = document.createTextNode(message + '\n');
+      pre.appendChild(textContent);
+    }
+  
+    /**
+     * Print the summary and start datetime/date of the next ten events in
+     * the authorized user's calendar. If no events are found an
+     * appropriate message is printed.
+     */
+    function listUpcomingEvents(date) {
+      console.log("Lilst Date:--", (new Date()).toISOString())
+      console.log("Lilst Date:--", date)
+      gapi.client.calendar.events.list({
+        'calendarId': 'primary',
+        'timeMin': date ? date : (new Date()).toISOString(),
+        'showDeleted': false,
+        'singleEvents': true,
+        'maxResults': 20,
+        'orderBy': 'startTime'
+      }).then(function (response) {
+        var events = response.result.items;
+        console.log("Events:--", events);
+        // appendPre('Upcoming events:');
+
+        if (events.length > 0) {
+          for (i = 0; i < events.length; i++) {
+            var event = events[i];
+            var when = event.start.dateTime;
+            if (!when) {
+              when = event.start.date;
+            }
+            console.log(event.summary + ' (' + when + ')')
+
+            $('#messages').append($('<li>').html("Event index " + i + "\n" + event.summary + ' (' + when + ')'));
+
+          }
+        } else {
+          console.log('No upcoming events found.')
+          $('#messages').append($('<li>').html("No upcoming events found."));
+          // appendPre('No upcoming events found.');
+        }
+      });
+    }
+    function listDateEvents(date) {
+      console.log("Lilst Date:--", (new Date()).toISOString())
+      console.log("Lilst Date:--", date)
+      let minDate = moment(date, "YYYY-MM-DDTHH:mm:ssz")
+      minDate.set('hour', 24).set('minute', 00).set('second', 00);
+      minDate = moment(minDate).format("YYYY-MM-DDTHH:mm:ssz")
+      console.log("MIn Date:--", minDate)
+      let maxDate = moment(date, "YYYY-MM-DDTHH:mm:ssz")
+      maxDate.set('hour', 00).set('minute', 00).set('second', 00)//.format("YYYY-MM-DDTHH:mm:ss")//.set('hour', 24).set('minute', 00).set('second', 00);
+      maxDate = moment(maxDate).format("YYYY-MM-DDTHH:mm:ssz")
+      // console.log("Max Date:--", maxDate.toDate())
+
+      console.log("Max Date:--", maxDate)
+      gapi.client.calendar.events.list({
+        'calendarId': 'primary',
+        'timeMin': maxDate ? maxDate + 'z' : (new Date()).toISOString(),
+        'timeMax': minDate ? minDate + 'z' : (new Date()).toISOString(),
+        'showDeleted': false,
+        'singleEvents': true,
+        'maxResults': 20,
+        'orderBy': 'startTime'
+      }).then(function (response) {
+        var events = response.result.items;
+        console.log("Events:--", events);
+        // appendPre('Upcoming events:');
+
+        if (events.length > 0) {
+          for (i = 0; i < events.length; i++) {
+            var event = events[i];
+            var when = event.start.dateTime;
+            if (!when) {
+              when = event.start.date;
+            }
+            console.log(event.summary + ' (' + when + ')')
+            if (type === 'delete') {
+              deleteEvents(date, event, when)
+            } else {
+              $('#messages').append($('<li>').html("Event index " + i + "\n" + event.summary + ' (' + when + ')'));
+            }
+          }
+        } else {
+          console.log('No upcoming events found.')
+          $('#messages').append($('<li>').html("No upcoming events found."));
+          // appendPre('No upcoming events found.');
+        }
+      });
+    }
+    function deleteEvents(date, event, when) {
+      console.log("Lilst Date:--", (new Date()).toISOString())
+      console.log("Lilst Date:--", date)
+      gapi.client.calendar.events.delete({
+        'calendarId': 'primary',
+        'eventId': event.id
+      }).then(function (response) {
+        console.log("Events:--", response);
+        $('#messages').append($('<li>').html("Event Deleted: " + event.summary + ' (' + when + ')'));
+        // var events = response.result.items;
+        // console.log("Events:--",events);
+        // // appendPre('Upcoming events:');
+
+        // if (events.length > 0) {
+        //   for (i = 0; i < events.length; i++) {
+        //     var event = events[i];
+        //     var when = event.start.dateTime;
+        //     if (!when) {
+        //       when = event.start.date;
+        //     }
+        //     console.log(event.summary + ' (' + when + ')')
+        //     $('#messages').append($('<li>').html("Event index "+i+"\n"+event.summary + ' (' + when + ')'));
+        //   }
+        // } else {
+        //   console.log('No upcoming events found.')
+        //   // appendPre('No upcoming events found.');
+        // }
+      });
+    }
+
+    function insertEvent(eventTitle, eventDate) {
+      console.log("Event date:--", eventDate)
+      var event = {
+        'summary': eventTitle,
+        'location': '800 Howard St., San Francisco, CA 94103',
+        'description': 'A chance to hear more about Google\'s developer products.',
+        'start': {
+          'dateTime': eventDate,
+          'timeZone': 'Asia/Kolkata'
+        },
+        'end': {
+          'dateTime': eventDate,
+          'timeZone': 'Asia/Kolkata'
+        },
+        'attendees': [
+          { 'email': 'lpage@example.com' },
+          { 'email': 'sbrin@example.com' }
+        ]
+      };
+
+      var request = gapi.client.calendar.events.insert({
+        'calendarId': 'primary',
+        'resource': event
+      });
+
+      request.execute(function (event) {
+        console.log('Event created: ', event);
+        listUpcomingEvents();
+      });
+    }
+
+  </script>
+
+  <script async defer src="https://apis.google.com/js/api.js" onload="this.onload=function(){}; handleClientLoad();" onreadystatechange="if (this.readyState === 'complete') this.onload()">
+  </script>
+  </script>
+</body>
+
+</html>
