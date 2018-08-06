@@ -1,0 +1,185 @@
+<!doctype html>
+<html>
+    <head>
+        <title>chatbot-ai</title>
+        <link rel="stylesheet" type="text/css" href="/css/chat.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+        <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    </head>
+
+    <body>
+      <div id="loader" style="display: none"></div>
+      <div id="chatwindow">
+          <div id="messageArea">
+              <ul id="messages"><li><%= text %></li></ul>
+          </div>
+          <form action="">
+              <input id="m" autocomplete="off" style="width:80%"; onkeydown="uniCharCode(event)"/><button type="button" style="background-color:#fff;cursor:pointer;";><i class="fa fa-microphone"></i></button><button>Send</button>
+          </form>
+      </div>
+
+      <div id="picker" style="display:none"></div>
+
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.20.1/moment.min.js"></script>
+      <script>
+        let listOfMessages=[];
+        let index;
+        function uniCharCode(event) {
+            var char = event.which || event.keyCode;
+            if(char===38) {
+                if(index>0) {
+                    index--;
+                    $('#m').val(listOfMessages[index]);
+                }
+            }
+            if(char===40) {
+                if(index<listOfMessages.length) {
+                    index++;
+                    $('#m').val(listOfMessages[index]);
+                }
+            }
+        }
+        var gIsSignedIn = false;
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        document.querySelector('button').addEventListener('click', () => {
+            document.querySelector('button').style = 'background-color:#ff0000;cursor:pointer'
+            recognition.start();
+        });
+
+        recognition.addEventListener('speechstart', () => {
+          console.log('Speech has been detected.');
+        });
+
+        recognition.addEventListener('result', (e) => {
+          console.log('Result has been detected.', e.results);
+
+          let last = e.results.length - 1;
+          let text = e.results[last][0].transcript;
+
+          console.log('Confidence : ' + e.results[0][0].confidence);
+          
+          $("#m").val(text);
+          $('form').submit();
+          listOfMessages.push(text);
+            index=listOfMessages.length;
+        });
+
+        recognition.addEventListener('speechend', () => {
+          console.log('Speech end.');
+          document.querySelector('button').style = 'background-color:#fff;cursor:pointer'
+          recognition.stop();
+        });
+
+        recognition.addEventListener('error', (e) => {
+          console.log('Speech error.', e.error);
+          document.querySelector('button').style = 'background-color:#fff;cursor:pointer'
+          $('#messages').append($('<li>').text('Error: ' + e.error));
+        });
+
+        
+        $('form').submit(function () {
+          var port = "<%= port %>";
+          let msg = {
+              message: $('#m').val()
+          }
+          $('#messages').append($('<li>').text($('#m').val()));
+          $('#loader').css('display','');
+
+          $.post('http://localhost:'+port+'/chat-message',msg, function(reply) {
+          console.log("Received Socket Reply >> ", reply)
+          if (reply.action == "location") {
+              // synthVoice('check your request')
+              window.open(reply.string)
+            } else {
+              synthVoice(reply.string);
+            }
+            
+            let msgs = reply.string.split("\n");
+            msgs.forEach(element => {
+              // translateMessage(element);
+              if (reply.type == 'html') {
+                $('#messages').append($('<li>').html(element));
+              }
+              else {
+                $('#messages').append($('<li>').text(element));
+              }
+                  $('#loader').css('display','none');
+            });
+            $('#messages').animate({scrollTop: $('#messages').prop("scrollHeight")}, 500);
+            
+            let msg = reply.string
+            if (reply.type) {
+            	type = reply.type;
+            	date = reply.date
+              gIsSignedIn = gapi.auth2.getAuthInstance().isSignedIn.get();
+              
+            	if (type === 'insert') {
+            		if (gIsSignedIn) {
+            			insertEvent("Event Test", date)
+            		}
+            	} else if (type === 'get') {
+            		listDateEvents(date)
+            	} else if (type === 'delete') {
+            		listDateEvents(date)
+            	} else if (type === 'upcoming_get') {
+            		listUpcomingEvents(date)
+            	} else if (type === 'dbpedia') {
+            		let searchData = reply.search;
+            		for(var i in searchData) {
+            			var key = i;
+            			var val = searchData[i];
+            			$('#messages').append($('<li>').text("^^ "+ capitalizeFirstLetter(val.key)+" ---> " +val.value));
+            		}
+            	}
+            }
+          });
+
+          listOfMessages.push($('#m').val());
+          index=listOfMessages.length;
+          $('#m').val('');
+          return false;
+        });
+
+        // Translate message to other language
+        function translateMessage(inputVal) {
+          console.log('Input Translate ', inputVal)
+          axios.post('https://api.cenacle.io/phtrans/toGujarati/json?api_key=VQQHbNPyHmUtps4u2oQgGj9y5oyM6v29UifUyM95', {
+              input: inputVal,
+          },{
+            headers: {
+                'X-Api-Key': 'VQQHbNPyHmUtps4u2oQgGj9y5oyM6v29UifUyM95',
+                'Content-Type': 'application/json'
+            }
+          })
+          .then(function (response) {
+            console.log(response);
+          })
+          .catch(function (error) {
+            console.log("Error:", error);
+          });
+        }
+
+        function capitalizeFirstLetter(string) {
+          return string.charAt(0).toUpperCase() + string.slice(1);
+        }
+
+        function synthVoice(text) {
+          const synth = window.speechSynthesis;
+          const utterance = new SpeechSynthesisUtterance();
+          utterance.text = text;
+          console.log("Utterance ", utterance);
+          synth.speak(utterance);
+        }
+      </script>
+      <!-- <script src="/js/chat-api.js"></script> -->
+      <!-- <script async defer src="https://apis.google.com/js/api.js" onload="this.onload=function(){}; handleClientLoad();" onreadystatechange="if (this.readyState === 'complete') this.onload()"></script> -->
+    </body>
+
+</html>
